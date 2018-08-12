@@ -17,3 +17,8 @@ cscope*
 .subvimrc
 .vscode
 *.pkl
+
+
+*.out
+results.png
+
