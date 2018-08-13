@@ -1269,9 +1269,14 @@ class MainWindow(QMainWindow, WindowMixin):
         width, height = self.canvas.pixmap.width() * s, self.canvas.pixmap.height() * s
         amount_repetitions = 7
         amounts_shapes = np.linspace(1, 1000, 10).astype(int)
-        #amounts_shapes = np.array([1])
         amount_hoverings = 10000
         hover_locations =[]
+
+        only_add_once = True
+        if only_add_once:
+            amounts_shapes = np.array([500])
+            amount_repetitions = 1
+            amount_hoverings = 1
 
         for _ in range(amount_hoverings):
             x,y=np.random.uniform(0, width, 1), np.random.uniform(0, height, 1)
@@ -1313,14 +1318,15 @@ class MainWindow(QMainWindow, WindowMixin):
 
                 self.canvas.repaint()
 
-        # comptue mean and variance with respect to the average (repetition) axis
-        results_mean = np.mean(results_raw, axis=1)
-        results_var = np.var(results_raw, axis=1)
+        if not only_add_once:
+            # comptue mean and variance with respect to the average (repetition) axis
+            results_mean = np.mean(results_raw, axis=1)
+            results_var = np.var(results_raw, axis=1)
 
-        # write out into a file.
-        np.savetxt('x.out', amounts_shapes)
-        np.savetxt('mean.out', results_mean)
-        np.savetxt('var.out', results_var)
+            # write out into a file.
+            np.savetxt('x.out', amounts_shapes)
+            np.savetxt('mean.out', results_mean)
+            np.savetxt('var.out', results_var)
 
 
 
