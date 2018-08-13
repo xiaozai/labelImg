@@ -7,20 +7,20 @@ varNew = np.loadtxt('varNew.out')
 meanOld = np.loadtxt('meanOld.out')
 varOld = np.loadtxt('varOld.out')
 
-ms=1000
+ms=1000./10000. #< actually ms factor / amount executions 
 plt.figure(figsize=(5,10))
 plt.title("Comparison execution time: selection best-fit (new) or first found")
 ax = plt.subplot(2,1,1)
-plt.errorbar(x, meanNew/ms, np.sqrt(varNew)/ms, linestyle='None', marker='^', label="New")
-plt.errorbar(x, meanOld/ms, np.sqrt(varOld)/ms, linestyle='None', marker='^', label="Old")
+plt.errorbar(x, meanNew*ms, np.sqrt(varNew)*ms, linestyle='None', marker='^', label="New")
+plt.errorbar(x, meanOld*ms, np.sqrt(varOld)*ms, linestyle='None', marker='^', label="Old")
 ax.set_xlabel("amount of shapes added (randomly) to the image")
-ax.set_ylabel("Time [ns] / hover event")
+ax.set_ylabel("Time [nanoseconds] / hover event")
 ax.legend()
 
 ax = plt.subplot(2,1,2)
 ax.set_xlabel("amount of shapes added (randomly) to the image")
 ax.set_ylabel("Factor by which the new impl is slower")
-plt.errorbar(x, meanNew/meanOld, np.sqrt(varNew)/ms, linestyle='None', marker='^', label="New")
+plt.scatter(x, meanNew/meanOld, label="New")
 
 plt.legend()
 plt.savefig("results.png")
