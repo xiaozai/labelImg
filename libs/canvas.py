@@ -158,7 +158,9 @@ class Canvas(QWidget):
                 self.shapeMoved.emit()
                 self.repaint()
             return
+        self.hoverCanvas(pos)
 
+    def hoverCanvas(self, pos):
         # Just hovering over the canvas, 2 possibilities:
         # - Highlight shapes
         # - Highlight vertex
@@ -227,6 +229,8 @@ class Canvas(QWidget):
             self.hVertex, self.hShape = None, None
             self.overrideCursor(CURSOR_DEFAULT)
             self.update()
+
+
 
     def mousePressEvent(self, ev):
         pos = self.transformPos(ev.pos())

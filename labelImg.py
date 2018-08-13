@@ -1,4 +1,5 @@
 #!/usr/bin/env python
+from timeit import default_timer as timer
 # -*- coding: utf-8 -*-
 import codecs
 import distutils.spawn
@@ -7,6 +8,7 @@ import platform
 import re
 import sys
 import subprocess
+import numpy as np
 
 from functools import partial
 from collections import defaultdict
@@ -214,6 +216,8 @@ class MainWindow(QMainWindow, WindowMixin):
         quit = action('&Quit', self.close,
                       'Ctrl+Q', 'quit', u'Quit application')
 
+        evaluate = action('&Evaluate', self.evaluate, '', 'evaluate', u'Start performance evaluation')
+
         open = action('&Open', self.openFile,
                       'Ctrl+O', 'open', u'Open image or label file')
 
@@ -333,7 +337,7 @@ class MainWindow(QMainWindow, WindowMixin):
             self.popLabelListMenu)
 
         # Store actions for further handling.
-        self.actions = struct(save=save, save_format=save_format, saveAs=saveAs, open=open, close=close, resetAll = resetAll,
+        self.actions = struct(save=save, save_format=save_format, saveAs=saveAs, evaluate=evaluate, open=open, close=close, resetAll = resetAll,
                               lineColor=color1, create=create, delete=delete, edit=edit, copy=copy,
                               createMode=createMode, editMode=editMode, advancedMode=advancedMode,
                               shapeLineColor=shapeLineColor, shapeFillColor=shapeFillColor,
@@ -341,7 +345,7 @@ class MainWindow(QMainWindow, WindowMixin):
                               fitWindow=fitWindow, fitWidth=fitWidth,
                               zoomActions=zoomActions,
                               fileMenuActions=(
-                                  open, opendir, save, saveAs, close, resetAll, quit),
+                                  evaluate, open, opendir, save, saveAs, close, resetAll, quit),
                               beginner=(), advanced=(),
                               editMenu=(edit, copy, delete,
                                         None, color1),
@@ -378,7 +382,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.paintLabelsOption.triggered.connect(self.togglePaintLabelsOption)
 
         addActions(self.menus.file,
-                   (open, opendir, changeSavedir, openAnnotation, self.menus.recentFiles, save, save_format, saveAs, close, resetAll, quit))
+                   (evaluate, open, opendir, changeSavedir, openAnnotation, self.menus.recentFiles, save, save_format, saveAs, close, resetAll, quit))
         addActions(self.menus.help, (help, showInfo))
         addActions(self.menus.view, (
             self.autoSaving,
@@ -399,11 +403,11 @@ class MainWindow(QMainWindow, WindowMixin):
 
         self.tools = self.toolbar('Tools')
         self.actions.beginner = (
-            open, opendir, changeSavedir, openNextImg, openPrevImg, verify, save, save_format, None, create, copy, delete, None,
+            evaluate, open, opendir, changeSavedir, openNextImg, openPrevImg, verify, save, save_format, None, create, copy, delete, None,
             zoomIn, zoom, zoomOut, fitWindow, fitWidth)
 
         self.actions.advanced = (
-            open, opendir, changeSavedir, openNextImg, openPrevImg, save, save_format, None,
+            evaluate, open, opendir, changeSavedir, openNextImg, openPrevImg, save, save_format, None,
             createMode, editMode, None,
             hideAll, showAll)
 
@@ -1249,7 +1253,77 @@ class MainWindow(QMainWindow, WindowMixin):
                 filename = self.mImgList[currIndex + 1]
 
         if filename:
-            self.loadFile(filename)
+            self.loadFile(filename
+                          )
+    def evaluate(self, _value=False):
+        """
+        Evaluate mouse movement for a fixed setup of multiple pre-created shapes.
+        All experiemnts are executed multiple times, and the time consumption is
+        averaged.
+
+        :param _value:
+        :return:
+        """
+
+        s=1
+        width, height = self.canvas.pixmap.width() * s, self.canvas.pixmap.height() * s
+        amount_repetitions = 7
+        amounts_shapes = np.linspace(1, 1000, 10).astype(int)
+        #amounts_shapes = np.array([1])
+        amount_hoverings = 10000
+        hover_locations =[]
+
+        for _ in range(amount_hoverings):
+            x,y=np.random.uniform(0, width, 1), np.random.uniform(0, height, 1)
+            hover_locations.append(QPoint(x,y))
+
+
+        results_raw = np.empty([amounts_shapes.shape[0], amount_repetitions])
+
+
+        for i, amount_shapes_i in enumerate(amounts_shapes):
+            # random locations for the different shapes for each trial (precomputed)
+            pointsx = np.random.uniform(0, width, [amount_shapes_i, amount_repetitions, 2])
+            pointsy = np.random.uniform(0, height, [amount_shapes_i, amount_repetitions, 2])
+
+            for e in range(amount_repetitions):
+
+                # tear down the previous configuration
+                self.canvas.shapes = []
+                self.itemsToShapes = {}
+                self.shapesToItems = {}
+
+                # build the randomly selected elements
+                for shape_id in range(amount_shapes_i):
+                    current = Shape()
+                    current.addPoint(QPoint(pointsx[shape_id, e, 0], pointsy[shape_id, e, 0]))
+                    current.addPoint(QPoint(pointsx[shape_id, e, 1], pointsy[shape_id, e, 0]))
+                    current.addPoint(QPoint(pointsx[shape_id, e, 1], pointsy[shape_id, e, 1]))
+                    current.addPoint(QPoint(pointsx[shape_id, e, 0], pointsy[shape_id, e, 1]))
+                    self.canvas.shapes.append(current)
+                    self.addLabel(current)
+
+
+                start = timer()
+                for l in hover_locations:
+                    self.canvas.hoverCanvas(l)
+
+                end = timer()
+                results_raw[i,e] = end-start
+
+                self.canvas.repaint()
+
+        # comptue mean and variance with respect to the average (repetition) axis
+        results_mean = np.mean(results_raw, axis=1)
+        results_var = np.var(results_raw, axis=1)
+
+        # write out into a file.
+        np.savetxt('x.out', amounts_shapes)
+        np.savetxt('mean.out', results_mean)
+        np.savetxt('var.out', results_var)
+
+
+
 
     def openFile(self, _value=False):
         if not self.mayContinue():
@@ -1407,7 +1481,6 @@ class MainWindow(QMainWindow, WindowMixin):
         self.set_format(FORMAT_YOLO)
         tYoloParseReader = YoloReader(txtPath, self.image)
         shapes = tYoloParseReader.getShapes()
-        print (shapes)
         self.loadLabels(shapes)
         self.canvas.verified = tYoloParseReader.verified
 
