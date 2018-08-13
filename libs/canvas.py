@@ -11,12 +11,14 @@ except ImportError:
 
 from libs.shape import Shape
 from libs.lib import distance
+from math import acos, pi
 
 CURSOR_DEFAULT = Qt.ArrowCursor
 CURSOR_POINT = Qt.PointingHandCursor
 CURSOR_DRAW = Qt.CrossCursor
 CURSOR_MOVE = Qt.ClosedHandCursor
 CURSOR_GRAB = Qt.OpenHandCursor
+CURSOR_ROTATE = Qt.SizeAllCursor
 
 # class Canvas(QGLWidget):
 
@@ -205,7 +207,10 @@ class Canvas(QWidget):
             self.hVertex, self.hShape = vertex_selected
             self.hShape.highlightVertex(self.hVertex, self.hShape.MOVE_VERTEX)
             self.setToolTip("Click & drag to move point")
-            self.overrideCursor(CURSOR_POINT)
+            if self.hVertex == Shape.INDEX_ROTATION_ENTITY:
+                self.overrideCursor(CURSOR_ROTATE)
+            else:
+                self.overrideCursor(CURSOR_POINT)
             self.setStatusTip(self.toolTip())
             self.update()
 
@@ -238,6 +243,7 @@ class Canvas(QWidget):
                 self.selectShapePoint(pos)
                 self.prevPoint = pos
                 self.repaint()
+                pass
         elif ev.button() == Qt.RightButton and self.editing():
             self.selectShapePoint(pos)
             self.prevPoint = pos
@@ -327,11 +333,13 @@ class Canvas(QWidget):
     def selectShapePoint(self, point):
         """Select the first shape created which contains this point."""
         self.deSelectShape()
-        if self.selectedVertex():  # A vertex is marked for selection.
+        if self.selectedVertex():
+            print("hier ist ein vertex")
             index, shape = self.hVertex, self.hShape
             shape.highlightVertex(index, shape.MOVE_VERTEX)
             self.selectShape(shape)
         elif self.hShape is not None:
+            print("shape ist das große element")
             self.selectShape(self.hShape)
             self.calculateOffsets(self.hShape, point)
 
@@ -345,25 +353,87 @@ class Canvas(QWidget):
 
     def boundedMoveVertex(self, pos):
         index, shape = self.hVertex, self.hShape
-        point = shape[index]
-        if self.outOfPixmap(pos):
-            pos = self.intersectionPoint(point, pos)
 
-        shiftPos = pos - point
-        shape.moveVertexBy(index, shiftPos)
 
-        lindex = (index + 1) % 4
-        rindex = (index + 3) % 4
-        lshift = None
-        rshift = None
-        if index % 2 == 0:
-            rshift = QPointF(shiftPos.x(), 0)
-            lshift = QPointF(0, shiftPos.y())
-        else:
-            lshift = QPointF(shiftPos.x(), 0)
-            rshift = QPointF(0, shiftPos.y())
-        shape.moveVertexBy(rindex, rshift)
-        shape.moveVertexBy(lindex, lshift)
+        # XXX: first problem:
+        # unable to distinguish between movement in the direction of the circle or against.
+
+        # XXX: second problem:
+        # i think that the problem that occurs (not rectangular after rotation + resize)
+        # is caused by rounding errors. thus i propose to store the rotation angle and
+        # to compute the rotation according to the stored location and not according to the
+        # last step.
+        if index == Shape.INDEX_ROTATION_ENTITY:
+            # Case: drag the rotation vertex.
+            vertex_info = shape.getShapeRotationVertex(True)
+            if vertex_info is not None:
+                # 1. Fetch the orignal vertex.
+                # 2. Compute the angle between the original and the
+                #    previous one
+
+
+
+                eucl_sq = lambda a : a.x()**2 + a.y()**2
+                vertex_point = vertex_info[0]
+                vertex_mirrored = vertex_info[2]
+                shape_center = shape.getCenter(False)
+
+                # compute the vector from origin (center of mass of shape)
+                # to the original vertex point and the squared lenght of that
+                # vector
+                vec_old_center = vertex_point - shape_center# - vertex_point
+                dist_old_center_square = eucl_sq(vec_old_center)
+
+                # repeat for new rotation position
+                vec_new_center = pos - shape_center# - pos
+                dist_new_center_square = eucl_sq(vec_new_center)
+
+                val = vec_new_center.dotProduct(vec_new_center, vec_old_center) / (dist_new_center_square * dist_old_center_square) **.5
+
+                try:
+                    angle = acos(val)
+                except Exception:
+                    print("exception" , val)
+                if pos.x() < vertex_point.x():
+                    angle =  2 * pi - angle
+                if vertex_mirrored:
+                    angle = -angle
+
+
+
+                shape.applyRotationAngle(angle , shape_center)
+
+
+        elif not self.outOfPixmap(pos):
+            dot = lambda x, y: x.x() * y.x() + x.y() * y.y()
+            eucl = lambda a : 1.*a.x()**2 + 1.*a.y()**2
+            point = shape[index]
+
+            # Apply the shift in the rotated space
+            offset_rotated = shape.points[index] - pos
+            if shape.points[index] != pos:
+
+                lindex = (index + 1) % 4
+                rindex = (index + 3) % 4
+                oindex = (index + 2) % 4
+                vec_l = shape.points[oindex] - shape.points[lindex]
+                vec_r = shape.points[oindex] - shape.points[rindex]
+
+                vec_l_len = eucl(vec_l)
+                vec_r_len = eucl(vec_r)
+                proj_l = vec_l * dot(vec_l, offset_rotated) / vec_l_len
+                proj_r = vec_r * dot(vec_r, offset_rotated) / vec_r_len
+
+                pl = shape.points[lindex] - proj_l
+                pr = shape.points[rindex] - proj_r
+                if pl != pos and pr != pos and not self.outOfPixmap(pl)\
+                    and not self.outOfPixmap(pr) and not self.outOfPixmap(pos):
+                    shape.points[index] = pos
+                    shape.points[lindex] = pl
+                    shape.points[rindex] = pr
+                    shape_center = shape.getCenter(True)
+                    shape.applyRotationAngle(shape.currentAngle, shape_center, False)
+                    shape.applyRotationAngle(shape.currentAngle, shape_center)
 
     def boundedMoveShape(self, shape, pos):
         if self.outOfPixmap(pos):
@@ -382,7 +452,7 @@ class Canvas(QWidget):
         #self.calculateOffsets(self.selectedShape, pos)
         dp = pos - self.prevPoint
         if dp:
-            shape.moveBy(dp)
+            shape.shift(dp)
             self.prevPoint = pos
             return True
         return False
@@ -491,7 +561,9 @@ class Canvas(QWidget):
 
     def outOfPixmap(self, p):
         w, h = self.pixmap.width(), self.pixmap.height()
-        return not (0 <= p.x() <= w and 0 <= p.y() <= h)
+        condition = not (0 <= p.x() < w and 0 <= p.y() < h)
+        if condition: print("condition", p.x(), p.y())
+        return not (0 <= p.x() < w and 0 <= p.y() < h)
 
     def finalise(self):
         assert self.current
@@ -525,6 +597,7 @@ class Canvas(QWidget):
                   (0, size.height())]
         x1, y1 = p1.x(), p1.y()
         x2, y2 = p2.x(), p2.y()
+
         d, i, (x, y) = min(self.intersectingEdges((x1, y1), (x2, y2), points))
         x3, y3 = points[i]
         x4, y4 = points[(i + 1) % 4]
@@ -543,7 +616,7 @@ class Canvas(QWidget):
         edge along with its index, so that the one closest can be chosen."""
         x1, y1 = x1y1
         x2, y2 = x2y2
-        for i in range(4):
+        for i in range(len(points)):
             x3, y3 = points[i]
             x4, y4 = points[(i + 1) % 4]
             denom = (y4 - y3) * (x2 - x1) - (x4 - x3) * (y2 - y1)
@@ -555,12 +628,14 @@ class Canvas(QWidget):
                 #   otherwise: Parallel
                 continue
             ua, ub = nua / denom, nub / denom
+            print(i, ua, ub, "iuaub")
             if 0 <= ua <= 1 and 0 <= ub <= 1:
                 x = x1 + ua * (x2 - x1)
                 y = y1 + ua * (y2 - y1)
                 m = QPointF((x3 + x4) / 2, (y3 + y4) / 2)
                 d = distance(m - QPointF(x2, y2))
                 yield d, i, (x, y)
+        print("not found anything.", x1y1, x2y2)
 
     # These two, along with a call to adjustSize are required for the
     # scroll area.
