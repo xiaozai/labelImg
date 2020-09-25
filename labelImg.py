@@ -41,6 +41,7 @@ from libs.toolBar import ToolBar
 from libs.pascal_voc_io import PascalVocReader
 from libs.pascal_voc_io import XML_EXT
 from libs.yolo_io import YoloReader
+from libs.cdtb_io import CDTBReader
 from libs.yolo_io import TXT_EXT
 from libs.ustr import ustr
 from libs.version import __version__
@@ -100,8 +101,9 @@ class MainWindow(QMainWindow, WindowMixin):
 
         # Save as Pascal voc xml
         self.defaultSaveDir = defaultSaveDir
-        self.usingPascalVocFormat = True
+        self.usingPascalVocFormat = False
         self.usingYoloFormat = False
+        self.usingCDTBFormat = True  # added by Song
 
         # For loading all image under a directory
         self.mImgList = []
@@ -487,6 +489,7 @@ class MainWindow(QMainWindow, WindowMixin):
             self.actions.save_format.setIcon(newIcon("format_voc"))
             self.usingPascalVocFormat = True
             self.usingYoloFormat = False
+            self.usingCDTBFormat = False                                        # added by Song
             LabelFile.suffix = XML_EXT
 
         elif save_format == FORMAT_YOLO:
@@ -494,11 +497,23 @@ class MainWindow(QMainWindow, WindowMixin):
             self.actions.save_format.setIcon(newIcon("format_yolo"))
             self.usingPascalVocFormat = False
             self.usingYoloFormat = True
+            self.usingCDTBFormat = False                                        # added by Song
+            LabelFile.suffix = TXT_EXT
+
+        elif save_format == FORMAT_CDTB:
+            self.actions.save_format.setText(FORMAT_CDTB)                       # added by Song
+            self.actions.save_format.setIcon(newIcon("format_cdtb"))
+            self.usingPascalVocFormat = False
+            self.usingYoloFormat = False
+            self.usingCDTBFormat = True
             LabelFile.suffix = TXT_EXT
 
     def change_format(self):
+        print('Song : ', FORMAT_PASCALVOC)
         if self.usingPascalVocFormat: self.set_format(FORMAT_YOLO)
         elif self.usingYoloFormat: self.set_format(FORMAT_PASCALVOC)
+        elif self.usingCDTBFormat: self.set_format(FORMAT_CDTB)                 # added by Song
+
 
     def noShapes(self):
         return not self.itemsToShapes
@@ -789,6 +804,13 @@ class MainWindow(QMainWindow, WindowMixin):
                 print ('Img: ' + self.filePath + ' -> Its txt: ' + annotationFilePath)
                 self.labelFile.saveYoloFormat(annotationFilePath, shapes, self.filePath, self.imageData, self.labelHist,
                                                    self.lineColor.getRgb(), self.fillColor.getRgb())
+            # Added by Song
+            elif self.usingCDTBFormat is True:
+                if annotationFilePath[-4:] != ".txt":
+                    annotationFilePath += TXT_EXT
+                print ('Img: ' + self.filePath + ' -> Its txt: ' + annotationFilePath)
+                self.labelFile.saveCDTBFormat(annotationFilePath, shapes, self.filePath, self.imageData, self.labelHist,
+                                                   self.lineColor.getRgb(), self.fillColor.getRgb())
             else:
                 self.labelFile.save(annotationFilePath, shapes, self.filePath, self.imageData,
                                     self.lineColor.getRgb(), self.fillColor.getRgb())
@@ -1011,19 +1033,22 @@ class MainWindow(QMainWindow, WindowMixin):
                 txtPath = os.path.join(self.defaultSaveDir, basename + TXT_EXT)
 
                 """Annotation file priority:
-                PascalXML > YOLO
+                CDTB > PascalXML > YOLO
                 """
+
                 if os.path.isfile(xmlPath):
                     self.loadPascalXMLByFilename(xmlPath)
                 elif os.path.isfile(txtPath):
-                    self.loadYOLOTXTByFilename(txtPath)
+                    # self.loadYOLOTXTByFilename(txtPath)
+                    self.loadCDTBTXTByFilename(txtPath)
             else:
                 xmlPath = os.path.splitext(filePath)[0] + XML_EXT
                 txtPath = os.path.splitext(filePath)[0] + TXT_EXT
                 if os.path.isfile(xmlPath):
                     self.loadPascalXMLByFilename(xmlPath)
                 elif os.path.isfile(txtPath):
-                    self.loadYOLOTXTByFilename(txtPath)
+                    # self.loadYOLOTXTByFilename(txtPath)
+                    self.loadCDTBTXTByFilename(txtPath)
 
             self.setWindowTitle(__appname__ + ' ' + filePath)
 
@@ -1410,6 +1435,19 @@ class MainWindow(QMainWindow, WindowMixin):
         print (shapes)
         self.loadLabels(shapes)
         self.canvas.verified = tYoloParseReader.verified
+                                                                                # Added by Song
+    def loadCDTBTXTByFilename(self, txtPath):
+        if self.filePath is None:
+            return
+        if os.path.isfile(txtPath) is False:
+            return
+
+        self.set_format(FORMAT_CDTB)
+        tCDTBParseReader = CDTBReader(txtPath, self.image)
+        shapes = tCDTBParseReader.getShapes()
+        print (shapes)
+        self.loadLabels(shapes)
+        self.canvas.verified = tCDTBParseReader.verified
 
     def togglePaintLabelsOption(self):
         paintLabelsOptionChecked = self.paintLabelsOption.isChecked()
