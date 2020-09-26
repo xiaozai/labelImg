@@ -103,7 +103,9 @@ class MainWindow(QMainWindow, WindowMixin):
         self.defaultSaveDir = defaultSaveDir
         self.usingPascalVocFormat = False
         self.usingYoloFormat = False
-        self.usingCDTBFormat = True  # added by Song
+        self.usingCDTBFormat = True                                     # added by Song
+        self.format_list = [FORMAT_PASCALVOC, FORMAT_YOLO, FORMAT_CDTB]
+        self.cur_format = 2 # FORMAT_CDTB
 
         # For loading all image under a directory
         self.mImgList = []
@@ -508,11 +510,11 @@ class MainWindow(QMainWindow, WindowMixin):
             self.usingCDTBFormat = True
             LabelFile.suffix = TXT_EXT
 
-    def change_format(self):
-        print('Song : ', FORMAT_PASCALVOC)
-        if self.usingPascalVocFormat: self.set_format(FORMAT_YOLO)
-        elif self.usingYoloFormat: self.set_format(FORMAT_PASCALVOC)
-        elif self.usingCDTBFormat: self.set_format(FORMAT_CDTB)                 # added by Song
+    def change_format(self):                                                    # modified by Song
+        self.cur_format = (self.cur_format+1) % len(self.format_list)
+        # if self.usingPascalVocFormat: self.set_format(FORMAT_YOLO)
+        # elif self.usingYoloFormat : self.set_format(FORMAT_PASCALVOC)
+        self.set_format(self.format_list[self.cur_format])
 
 
     def noShapes(self):
@@ -1039,16 +1041,20 @@ class MainWindow(QMainWindow, WindowMixin):
                 if os.path.isfile(xmlPath):
                     self.loadPascalXMLByFilename(xmlPath)
                 elif os.path.isfile(txtPath):
-                    # self.loadYOLOTXTByFilename(txtPath)
-                    self.loadCDTBTXTByFilename(txtPath)
+                    if self.usingYoloFormat:
+                        self.loadYOLOTXTByFilename(txtPath)
+                    elif self.usingCDTBFormat:
+                        self.loadCDTBTXTByFilename(txtPath)
             else:
                 xmlPath = os.path.splitext(filePath)[0] + XML_EXT
                 txtPath = os.path.splitext(filePath)[0] + TXT_EXT
                 if os.path.isfile(xmlPath):
                     self.loadPascalXMLByFilename(xmlPath)
                 elif os.path.isfile(txtPath):
-                    # self.loadYOLOTXTByFilename(txtPath)
-                    self.loadCDTBTXTByFilename(txtPath)
+                    if self.usingYoloFormat:
+                        self.loadYOLOTXTByFilename(txtPath)
+                    elif self.usingCDTBFormat:
+                        self.loadCDTBTXTByFilename(txtPath)
 
             self.setWindowTitle(__appname__ + ' ' + filePath)
 
@@ -1432,7 +1438,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.set_format(FORMAT_YOLO)
         tYoloParseReader = YoloReader(txtPath, self.image)
         shapes = tYoloParseReader.getShapes()
-        print (shapes)
+        print(shapes)
         self.loadLabels(shapes)
         self.canvas.verified = tYoloParseReader.verified
                                                                                 # Added by Song
@@ -1445,7 +1451,7 @@ class MainWindow(QMainWindow, WindowMixin):
         self.set_format(FORMAT_CDTB)
         tCDTBParseReader = CDTBReader(txtPath, self.image)
         shapes = tCDTBParseReader.getShapes()
-        print (shapes)
+        print(shapes)
         self.loadLabels(shapes)
         self.canvas.verified = tCDTBParseReader.verified
 

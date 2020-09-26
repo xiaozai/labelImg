@@ -21,13 +21,7 @@ class CDTBWriter:
         self.localImgPath = localImgPath
         self.verified = False
 
-    # def addBndBox(self, xmin, ymin, xmax, ymax, name, difficult):
-    #     bndbox = {'xmin': xmin, 'ymin': ymin, 'xmax': xmax, 'ymax': ymax}
-    #     bndbox['name'] = name
-    #     bndbox['difficult'] = difficult
-    #     self.boxlist.append(bndbox)
     def addRotatedBox(self, points, name, difficult):
-        # bndbox = {'xmin': xmin, 'ymin': ymin, 'xmax': xmax, 'ymax': ymax}
         rotatedbox = {'p0x': points[0][0], 'p0y': points[0][1],
                       'p1x': points[1][0], 'p1y': points[1][1],
                       'p2x': points[2][0], 'p2y': points[2][1],
@@ -35,22 +29,6 @@ class CDTBWriter:
         rotatedbox['name'] = name
         rotatedbox['difficult'] = difficult
         self.boxlist.append(rotatedbox)
-
-    # def BndBox2YoloLine(self, box, classList=[]):
-    #     xmin = box['xmin']
-    #     xmax = box['xmax']
-    #     ymin = box['ymin']
-    #     ymax = box['ymax']
-    #
-    #     xcen = float((xmin + xmax)) / 2 / self.imgSize[1]
-    #     ycen = float((ymin + ymax)) / 2 / self.imgSize[0]
-    #
-    #     w = float((xmax - xmin)) / self.imgSize[1]
-    #     h = float((ymax - ymin)) / self.imgSize[0]
-    #
-    #     classIndex = classList.index(box['name'])
-    #
-    #     return classIndex, xcen, ycen, w, h
 
     def save(self, classList=[], targetFile=None):
 
@@ -68,18 +46,13 @@ class CDTBWriter:
             classesFile = os.path.join(os.path.dirname(os.path.abspath(targetFile)), "classes.txt")
             out_class_file = open(classesFile, 'w')
 
-
+        # Song : to save the file as : class_idx: x0 y0; x1 y1; x2 y2; x3 y3
         for box in self.boxlist:
-            # classIndex, xcen, ycen, w, h = self.BndBox2YoloLine(box, classList)
-            # print (classIndex, xcen, ycen, w, h)
-            out_file.write("%d: %.6f %.6f; %.6f %.6f; %.6f %.6f; %.6f %.6f\n" % (classList.index(box['name']),
+            out_file.write("%d:%.6f %.6f;%.6f %.6f;%.6f %.6f;%.6f %.6f\n" % (classList.index(box['name']),
                                                                                  box['p0x'], box['p0y'],
                                                                                  box['p1x'], box['p1y'],
                                                                                  box['p2x'], box['p2y'],
                                                                                  box['p3x'], box['p3y']))
-
-        print (classList)
-        print (out_class_file)
         for c in classList:
             out_class_file.write(c+'\n')
 
@@ -107,7 +80,7 @@ class CDTBReader:
         classesFile = open(self.classListPath, 'r')
         self.classes = classesFile.read().strip('\n').split('\n')
 
-        print (self.classes)
+        # print (self.classes)
 
         imgSize = [image.height(), image.width(),
                       1 if image.isGrayscale() else 3]
@@ -116,38 +89,38 @@ class CDTBReader:
 
         self.verified = False
         # try:
-        self.parseYoloFormat()
+        self.parseCDTBFormat()
         # except:
             # pass
 
     def getShapes(self):
         return self.shapes
 
-    def addShape(self, label, xmin, ymin, xmax, ymax, difficult):
-
-        points = [(xmin, ymin), (xmax, ymin), (xmax, ymax), (xmin, ymax)]
+    def addShape(self, label, points, difficult):
+        # points = [(points[0], points[1]), (points[2], points[3]), (points[4], points[5]), (points[6], points[7])]
         self.shapes.append((label, points, None, None, difficult))
 
-    def yoloLine2Shape(self, classIndex, xcen, ycen, w, h):
+    def cdtbLine2Shape(self, classIndex, points):
         label = self.classes[int(classIndex)]
 
-        xmin = max(float(xcen) - float(w) / 2, 0)
-        xmax = min(float(xcen) + float(w) / 2, 1)
-        ymin = max(float(ycen) - float(h) / 2, 0)
-        ymax = min(float(ycen) + float(h) / 2, 1)
+        pt0, pt1, pt2, pt3 = points.split(';')
 
-        xmin = int(self.imgSize[1] * xmin)
-        xmax = int(self.imgSize[1] * xmax)
-        ymin = int(self.imgSize[0] * ymin)
-        ymax = int(self.imgSize[0] * ymax)
+        x0, y0 = pt0.split(' ')
+        x1, y1 = pt1.split(' ')
+        x2, y2 = pt2.split(' ')
+        x3, y3 = pt3.split(' ')
 
-        return label, xmin, ymin, xmax, ymax
+        P = [(float(x0), float(y0)),
+             (float(x1), float(y1)),
+             (float(x2), float(y2)),
+             (float(x3), float(y3))]
 
-    def parseYoloFormat(self):
-        bndBoxFile = open(self.filepath, 'r')
-        for bndBox in bndBoxFile:
-            classIndex, xcen, ycen, w, h = bndBox.split(' ')
-            label, xmin, ymin, xmax, ymax = self.yoloLine2Shape(classIndex, xcen, ycen, w, h)
+        return label, P
 
+    def parseCDTBFormat(self):
+        rotatedBoxFile = open(self.filepath, 'r')
+        for rotatedBox in rotatedBoxFile:
+            classIndex, points = rotatedBox.split(':')               # points :  x0 y0; x1 y1; x2 y2; x3 y3;
+            label, points = self.cdtbLine2Shape(classIndex, points)
             # Caveat: difficult flag is discarded when saved as yolo format.
-            self.addShape(label, xmin, ymin, xmax, ymax, False)
+            self.addShape(label, points, False)
