@@ -1,15 +1,33 @@
-dog
-person
+Adapter
+Ball
+Basket
+Book
+Bottle
+BandLight
 cat
-tv
-car
-meatballs
-marinara sauce
-tomato soup
-chicken noodle soup
-french onion soup
-chicken breast
-ribs
-pulled pork
-hamburger
-cavity
+Cup
+Cube
+Clothes
+Duck
+DevelopmentBoard
+Egg
+EarPhone
+File
+FinnishFlag
+FinnishStudentHat
+Glass
+GhostMask
+Hat
+Hand
+Phone
+Pigeon
+Person
+Stand
+Squirrel
+SelfieStick
+Toy
+ToyPenguin
+ToiletPaper
+Thermos
+WoodenCube
+Yogurt
